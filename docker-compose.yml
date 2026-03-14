@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:17
+    ports:
+      - '5434:5432'
+    environment:
+      POSTGRES_USER: cro
+      POSTGRES_PASSWORD: cro_dev_password
+      POSTGRES_DB: cro_grammar
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - '6379:6379'
+
+volumes:
+  pgdata:

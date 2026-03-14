@@ -1,0 +1,240 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  STUDENT
+  ADMIN
+}
+
+enum NativeLanguage {
+  RU
+  UK
+  EN
+}
+
+enum ExerciseType {
+  JEDNINA_MNOZINA
+  FLASHCARDS
+  MULTIPLE_CHOICE
+  FILL_IN_BLANK
+}
+
+enum SessionStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
+enum PaymentPlatform {
+  STRIPE
+  APP_STORE
+  GOOGLE_PLAY
+}
+
+enum Currency {
+  EUR
+  USD
+}
+
+model User {
+  id               String          @id @default(uuid())
+  email            String          @unique
+  name             String
+  avatarUrl        String?
+  role             UserRole        @default(STUDENT)
+  nativeLanguage   NativeLanguage?
+  googleId         String?         @unique
+  appleId          String?         @unique
+  xpTotal          Int             @default(0)
+  currentStreak    Int             @default(0)
+  longestStreak    Int             @default(0)
+  lastPracticeDate DateTime?
+  expoPushToken    String?
+  isBlocked        Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  subscription     Subscription?
+  wordProgress     UserWordProgress[]
+  sessions         ExerciseSession[]
+  streakLogs       StreakLog[]
+}
+
+model SubscriptionPlan {
+  id                  String         @id @default(uuid())
+  name                String
+  intervalMonths      Int
+  priceEur            Decimal        @db.Decimal(10, 2)
+  priceUsd            Decimal        @db.Decimal(10, 2)
+  stripePriceIdEur    String?
+  stripePriceIdUsd    String?
+  rcProductIdIos      String?
+  rcProductIdAndroid  String?
+  isActive            Boolean        @default(true)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  subscriptions       Subscription[]
+}
+
+model Subscription {
+  id                    String             @id @default(uuid())
+  userId                String             @unique
+  planId                String?
+  platform              PaymentPlatform?
+  status                SubscriptionStatus @default(TRIALING)
+  currency              Currency?
+  trialStartedAt        DateTime?
+  trialEndsAt           DateTime?
+  currentPeriodStart    DateTime?
+  currentPeriodEnd      DateTime?
+  stripeCustomerId      String?
+  stripeSubscriptionId  String?
+  rcOriginalAppUserId   String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  user                  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                  SubscriptionPlan?  @relation(fields: [planId], references: [id])
+}
+
+model WebhookEvent {
+  id              String   @id @default(uuid())
+  source          String
+  externalEventId String   @unique
+  payload         Json
+  createdAt       DateTime @default(now())
+}
+
+model Category {
+  id        String    @id @default(uuid())
+  nameHr    String
+  nameRu    String
+  nameUk    String
+  nameEn    String
+  sortOrder Int       @default(0)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  wordSets  WordSet[]
+}
+
+model WordSet {
+  id         String    @id @default(uuid())
+  categoryId String
+  nameHr     String
+  nameRu     String
+  nameUk     String
+  nameEn     String
+  sortOrder  Int       @default(0)
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  category   Category  @relation(fields: [categoryId], references: [id])
+  words      Word[]
+  sessions   ExerciseSession[]
+}
+
+model Word {
+  id                  String               @id @default(uuid())
+  wordSetId           String
+  baseForm            String
+  pluralForm          String?
+  translationRu       String
+  translationUk       String
+  translationEn       String
+  sentenceHr          String?
+  sentenceBlankAnswer String?
+  wrongOptions        Json?
+  sortOrder           Int                  @default(0)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  wordSet             WordSet              @relation(fields: [wordSetId], references: [id])
+  exerciseConfigs     WordExerciseConfig[]
+  wordProgress        UserWordProgress[]
+  sessionAnswers      SessionAnswer[]
+}
+
+model WordExerciseConfig {
+  id           String       @id @default(uuid())
+  wordId       String
+  exerciseType ExerciseType
+
+  word         Word         @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@unique([wordId, exerciseType])
+}
+
+model UserWordProgress {
+  id                 String       @id @default(uuid())
+  userId             String
+  wordId             String
+  exerciseType       ExerciseType
+  seenInCurrentCycle Boolean      @default(false)
+  cycleNumber        Int          @default(1)
+  totalAttempts      Int          @default(0)
+  correctAttempts    Int          @default(0)
+  lastSeenAt         DateTime?
+  lastCorrectAt      DateTime?
+
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  word               Word         @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, wordId, exerciseType])
+}
+
+model ExerciseSession {
+  id              String        @id @default(uuid())
+  userId          String
+  exerciseType    ExerciseType
+  wordSetId       String
+  status          SessionStatus @default(IN_PROGRESS)
+  totalQuestions  Int           @default(0)
+  correctAnswers  Int           @default(0)
+  xpEarned        Int           @default(0)
+  createdAt       DateTime      @default(now())
+  completedAt     DateTime?
+
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wordSet         WordSet       @relation(fields: [wordSetId], references: [id])
+  answers         SessionAnswer[]
+}
+
+model SessionAnswer {
+  id          String          @id @default(uuid())
+  sessionId   String
+  wordId      String
+  givenAnswer String
+  isCorrect   Boolean
+
+  session     ExerciseSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  word        Word            @relation(fields: [wordId], references: [id])
+}
+
+model StreakLog {
+  id       String   @id @default(uuid())
+  userId   String
+  date     DateTime @db.Date
+  xpEarned Int      @default(0)
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
