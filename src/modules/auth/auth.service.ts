@@ -30,26 +30,51 @@ export class AuthService {
     this.redis = new Redis(this.configService.get<string>('REDIS_URL')!);
   }
 
-  async validateGoogleToken(idToken: string): Promise<GoogleProfile> {
+  async validateGoogleToken(token: string): Promise<GoogleProfile> {
     const { OAuth2Client } = await import('google-auth-library');
-    const client = new OAuth2Client(this.configService.get<string>('GOOGLE_CLIENT_ID'));
+    const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID')!;
+    const clientSecret = this.configService.get<string>('GOOGLE_CLIENT_SECRET')!;
+    const client = new OAuth2Client(clientId, clientSecret, 'postmessage');
 
-    const ticket = await client.verifyIdToken({
-      idToken,
-      audience: this.configService.get<string>('GOOGLE_CLIENT_ID'),
-    });
+    // Try as authorization code first (from web @react-oauth/google),
+    // fall back to ID token verification (from mobile)
+    try {
+      const { tokens } = await client.getToken(token);
+      const ticket = await client.verifyIdToken({
+        idToken: tokens.id_token!,
+        audience: clientId,
+      });
 
-    const payload = ticket.getPayload();
-    if (!payload) {
-      throw new UnauthorizedException('Invalid Google token');
+      const payload = ticket.getPayload();
+      if (!payload) {
+        throw new UnauthorizedException('Invalid Google token');
+      }
+
+      return {
+        googleId: payload.sub,
+        email: payload.email!,
+        name: payload.name || payload.email!,
+        avatarUrl: payload.picture || null,
+      };
+    } catch {
+      // Not an auth code — try as a raw ID token (mobile flow)
+      const ticket = await client.verifyIdToken({
+        idToken: token,
+        audience: clientId,
+      });
+
+      const payload = ticket.getPayload();
+      if (!payload) {
+        throw new UnauthorizedException('Invalid Google token');
+      }
+
+      return {
+        googleId: payload.sub,
+        email: payload.email!,
+        name: payload.name || payload.email!,
+        avatarUrl: payload.picture || null,
+      };
     }
-
-    return {
-      googleId: payload.sub,
-      email: payload.email!,
-      name: payload.name || payload.email!,
-      avatarUrl: payload.picture || null,
-    };
   }
 
   async googleLogin(idToken: string) {
