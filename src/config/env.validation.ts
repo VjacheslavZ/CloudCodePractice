@@ -5,6 +5,8 @@ export const envSchema = z.object({
   REDIS_URL: z.string().url(),
   JWT_SECRET: z.string().min(16),
   JWT_REFRESH_SECRET: z.string().min(16),
+  JWT_ACCESS_EXPIRY_SECONDS: z.coerce.number().default(900),
+  JWT_REFRESH_EXPIRY_SECONDS: z.coerce.number().default(2592000),
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   GOOGLE_CALLBACK_URL: z.string().url(),

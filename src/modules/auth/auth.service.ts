@@ -164,7 +164,7 @@ export class AuthService {
       { sub: userId },
       {
         secret: this.configService.get<string>('JWT_SECRET'),
-        expiresIn: '15m',
+        expiresIn: this.configService.get<number>('JWT_ACCESS_EXPIRY_SECONDS', 900),
       },
     );
 
@@ -172,11 +172,12 @@ export class AuthService {
       { sub: userId, tokenId },
       {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-        expiresIn: '30d',
+        expiresIn: this.configService.get<number>('JWT_REFRESH_EXPIRY_SECONDS', 2592000),
       },
     );
 
-    await this.redis.set(`refresh:${userId}:${tokenId}`, '1', 'EX', 30 * 24 * 60 * 60);
+    const refreshTtl = this.configService.get<number>('JWT_REFRESH_EXPIRY_SECONDS', 2592000);
+    await this.redis.set(`refresh:${userId}:${tokenId}`, '1', 'EX', refreshTtl);
 
     return { accessToken, refreshToken };
   }
