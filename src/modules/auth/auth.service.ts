@@ -1,9 +1,11 @@
+import { randomUUID } from 'crypto';
+
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { randomUUID } from 'crypto';
 import { addDays } from 'date-fns';
 import Redis from 'ioredis';
+
 import { PrismaService } from '../../prisma/prisma.service';
 
 interface GoogleProfile {
