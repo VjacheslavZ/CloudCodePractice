@@ -19,7 +19,8 @@ An application for learning Croatian grammar through interactive exercises. Targ
 | State              | Redux Toolkit + TanStack Query            |
 | Forms              | React Hook Form + Zod                     |
 | i18n               | i18next + react-i18next                   |
-| Auth (Backend)     | Passport.js (Google OAuth2 + Apple) + JWT |
+| Auth (Students)    | Passport.js (Google OAuth2 + Apple) + JWT |
+| Auth (Admin)       | Email/password (bcrypt) + JWT             |
 | Auth (Mobile)      | expo-auth-session + expo-web-browser + expo-crypto + expo-apple-authentication |
 | Web Payments       | Stripe (Checkout + Customer Portal)       |
 | Mobile Payments    | RevenueCat (App Store + Google Play IAP)  |
@@ -110,9 +111,9 @@ cro-admin/
 │   └── commit-msg
 ├── shared/                   # ← git submodule (cro-shared)
 ├── src/
-│   ├── features/             # content-mgmt, users, analytics, pricing
+│   ├── features/             # auth, content-mgmt, users, analytics, pricing
 │   ├── store/                # Redux store + RTK slices
-│   └── api/                  # TanStack Query hooks
+│   └── api/                  # TanStack Query hooks + axios client
 ├── package.json
 └── .nvmrc
 ```
@@ -215,6 +216,10 @@ SessionAnswer
 StreakLog
   userId + date @unique   <- one record per day
   xpEarned
+
+Admin
+  id, email, passwordHash
+  createdAt, updatedAt
 ```
 
 ---
@@ -223,7 +228,7 @@ StreakLog
 
 | Module                | Responsibility                                                 |
 | --------------------- | -------------------------------------------------------------- |
-| `AuthModule`          | Google OAuth2 + Apple, JWT (access 15m + refresh 30d in Redis) |
+| `AuthModule`          | Google OAuth2 + Apple, email/password (admins), JWT (access 15m + refresh 30d in Redis) |
 | `UsersModule`         | profile, language, push token, account deletion (GDPR)         |
 | `ContentModule`       | CRUD for categories / word sets / words (write — admin only)   |
 | `ExercisesModule`     | sessions, results processing                                   |
@@ -234,7 +239,7 @@ StreakLog
 | `GamificationModule`  | XP, streak, StreakLog                                          |
 | `NotificationsModule` | BullMQ producer/consumer for Expo push                         |
 | `AnalyticsModule`     | aggregations for admin (registrations, subscriptions)          |
-| `AdminModule`         | `AdminGuard` + admin-only endpoints                            |
+| `AdminModule`         | `AdminGuard` + admin-only endpoints, admin user management (add new admins) |
 
 ---
 
@@ -247,6 +252,14 @@ POST /auth/google
 POST /auth/apple
 POST /auth/refresh
 POST /auth/logout
+```
+
+### Admin Auth
+
+```
+POST /admin/auth/login
+POST /admin/auth/refresh
+POST /admin/auth/logout
 ```
 
 ### Users
@@ -287,9 +300,11 @@ POST /payments/stripe/webhook        # raw body, no auth guard
 POST /revenuecat/webhook             # HMAC verification
 ```
 
-### Admin
+### Admin (protected by AdminGuard)
 
 ```
+POST /admin/admins                    # add new admin
+GET  /admin/admins                    # list all admins
 POST/PATCH/DELETE /admin/categories
 POST/PATCH/DELETE /admin/word-sets
 POST/PATCH/DELETE /admin/words
@@ -299,6 +314,45 @@ GET  /admin/users
 PATCH /admin/users/:id/block
 GET  /admin/analytics/overview
 ```
+
+---
+
+## Admin Panel — Authentication
+
+### Overview
+
+The admin panel uses a separate email/password authentication system, independent of student OAuth. Admin credentials are stored in a dedicated `Admin` table (not the `User` table). There is no self-registration — new admin accounts can only be created by an already authenticated admin.
+
+### Login flow
+
+1. Admin enters email + password on the login page
+2. `POST /admin/auth/login` → backend verifies credentials (bcrypt compare)
+3. On success, backend returns JWT access + refresh tokens with `type: "admin"` claim
+4. `AdminGuard` checks the `type: "admin"` claim on every protected admin endpoint
+5. Refresh flow works identically to student auth (`POST /admin/auth/refresh`), with tokens stored in Redis
+
+### Adding new admins
+
+Authenticated admins can add new admin accounts via the "Add Admin" form in the admin panel:
+
+- **Fields**: email, password, confirm password
+- **Validation**: valid email format, password min 8 characters, passwords match
+- **Endpoint**: `POST /admin/admins` (protected by `AdminGuard`)
+
+### Default credentials
+
+| Email            | Password   | Notes                                  |
+| ---------------- | ---------- | -------------------------------------- |
+| test@gmail.com   | zxcv1234   | Seeded via `prisma db seed`            |
+
+The default admin account is created automatically when running the seed script. Change credentials in production.
+
+### Security notes
+
+- Passwords are hashed with **bcrypt** (cost factor 10) before storage
+- `@nestjs/throttler` rate-limits login attempts to prevent brute force
+- Refresh tokens are stored in **Redis** with 30-day TTL (same as student tokens)
+- Admin JWTs include `type: "admin"` claim — `AdminGuard` rejects tokens without this claim
 
 ---
 
@@ -478,6 +532,7 @@ Priorities:
 2. `ExercisesService` — results processing, XP calculation
 3. `GamificationService` — streak, XP
 4. `PaymentsService` — webhook idempotency
+5. `AdminAuthService` — login, password hashing, token generation
 
 ### Frontend (Jest + React Testing Library)
 
@@ -513,7 +568,8 @@ Priorities:
 - ESLint (airbnb) + Prettier, Husky, Docker Compose
 - NestJS: ConfigModule + Prisma + Swagger
 - Prisma migration (full schema)
-- AuthModule: Google + Apple, JWT, refresh in Redis
+- AuthModule: Google + Apple, email/password (admins), JWT, refresh in Redis
+- Admin login page (email + password) + `AdminGuard`
 - Vite + React + MUI for web and admin
 - i18next (RU/UK/EN) in web and admin
 - Redux + TanStack Query setup for web and admin
@@ -521,13 +577,14 @@ Priorities:
 - CORS configuration for cross-origin requests (web/admin on Vercel → API on Railway)
 - Basic CI (lint + typecheck + test)
 
-**Result**: Working Google/Apple login on web with language selection onboarding.
+**Result**: Working Google/Apple login on web with language selection onboarding. Admin panel login with email/password.
 
 ### Phase 2 — Content + Exercise Engine
 
 - ContentModule (CRUD + Redis cache)
-- Database seed script (`prisma db seed`) — initial categories, word sets, and words for development/testing
+- Database seed script (`prisma db seed`) — initial categories, word sets, words, and default admin account (test@gmail.com / zxcv1234)
 - Admin UI: categories, word sets, words
+- Admin UI: "Add Admin" form (manage admin accounts from the panel)
 - ProgressModule + cycle logic
 - ExercisesModule: sessions, results processing, 2 exercise types (Jednina i množina + Flashcards)
 - Exercise screens on web for these 2 types
@@ -717,6 +774,7 @@ OTA updates via `expo-updates` for JS changes without resubmitting to stores.
 | `@nestjs/swagger`                                           | automatic API documentation                         |
 | `@nestjs/throttler`                                         | rate-limiting                                       |
 | `helmet`                                                    | security headers                                    |
+| `bcrypt`                                                    | password hashing for admin accounts                 |
 | `passport-google-oauth20` + `passport-apple`                | OAuth strategies                                    |
 | `@nestjs/jwt`                                               | JWT tokens                                          |
 | `stripe` (Node SDK)                                         | Stripe API                                          |
@@ -741,10 +799,12 @@ OTA updates via `expo-updates` for JS changes without resubmitting to stores.
 4. Complete all words in a set -> confirm the cycle resets and words are shown again when user confirms reset
 5. Streak: log in on two consecutive days -> confirm streak = 2
 6. Open paywall -> create a Stripe Checkout session -> complete test payment -> confirm status changed to ACTIVE
-7. Admin: create a category -> word set -> word with translations -> confirm word appears in the app
-8. Admin: change subscription price -> confirm new price is displayed in the app
-9. `npm test` in each repo -> all tests pass
-10. `npm run lint` and `npm run typecheck` in each repo -> no errors
+7. Log in to admin panel with default credentials (test@gmail.com / zxcv1234) -> land on admin dashboard
+8. Add a new admin account via "Add Admin" form -> log out -> log in with the new account -> confirm access works
+9. Admin: create a category -> word set -> word with translations -> confirm word appears in the app
+10. Admin: change subscription price -> confirm new price is displayed in the app
+11. `npm test` in each repo -> all tests pass
+12. `npm run lint` and `npm run typecheck` in each repo -> no errors
 
 ---
 
