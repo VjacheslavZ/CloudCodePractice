@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: cro
+          POSTGRES_PASSWORD: cro_dev_password
+          POSTGRES_DB: cro_grammar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx prisma generate --schema=src/prisma/schema.prisma
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      - run: npm test
+        env:
+          DATABASE_URL: postgresql://cro:cro_dev_password@localhost:5432/cro_grammar?schema=public
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: ci-test-secret-min-16-chars
+          JWT_REFRESH_SECRET: ci-test-refresh-secret-min-16
+          GOOGLE_CLIENT_ID: ci-test-client-id
+          GOOGLE_CLIENT_SECRET: ci-test-client-secret
+          GOOGLE_CALLBACK_URL: http://localhost:3000/auth/google/callback
