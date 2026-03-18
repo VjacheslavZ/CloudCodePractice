@@ -6,6 +6,8 @@ import { envSchema } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
+import { AdminAuthModule } from './modules/admin-auth/admin-auth.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -17,6 +19,8 @@ import { UsersModule } from './modules/users/users.module';
     PrismaModule,
     AuthModule,
     UsersModule,
+    AdminAuthModule,
+    AdminModule,
   ],
 })
 export class AppModule {}
