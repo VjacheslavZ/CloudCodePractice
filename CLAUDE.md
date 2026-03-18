@@ -18,7 +18,7 @@ An application for learning Croatian grammar through interactive exercises. Targ
 | Cache / Queues     | Redis + BullMQ                            |
 | State              | Redux Toolkit + TanStack Query            |
 | Forms              | React Hook Form + Zod                     |
-| i18n               | i18next + react-i18next                   |
+| i18n               | i18next + react-i18next (cro-web + cro-mobile only; cro-admin uses English only) |
 | Auth (Students)    | Passport.js (Google OAuth2 + Apple) + JWT |
 | Auth (Admin)       | Email/password (bcrypt) + JWT             |
 | Auth (Mobile)      | expo-auth-session + expo-web-browser + expo-crypto + expo-apple-authentication |
