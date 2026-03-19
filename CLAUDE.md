@@ -571,9 +571,9 @@ Priorities:
 - AuthModule: Google + Apple, email/password (admins), JWT, refresh in Redis
 - Admin login page (email + password) + `AdminGuard`
 - Vite + React + MUI for web and admin
-- i18next (RU/UK/EN) in web and admin
+- i18next (RU/UK/EN) in web and mobile (admin in English only)
 - Redux + TanStack Query setup for web and admin
-- Language selection screen (first login onboarding: set `nativeLanguage`)
+- Language selection screen (first login onboarding: set `nativeLanguage`) and setting in profile
 - CORS configuration for cross-origin requests (web/admin on Vercel → API on Railway)
 - Basic CI (lint + typecheck + test)
 
