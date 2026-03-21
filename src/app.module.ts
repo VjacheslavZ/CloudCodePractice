@@ -8,6 +8,10 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { AdminAuthModule } from './modules/admin-auth/admin-auth.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { ContentModule } from './modules/content/content.module';
+import { ProgressModule } from './modules/progress/progress.module';
+import { GamificationModule } from './modules/gamification/gamification.module';
+import { ExercisesModule } from './modules/exercises/exercises.module';
 
 @Module({
   imports: [
@@ -21,6 +25,10 @@ import { AdminModule } from './modules/admin/admin.module';
     UsersModule,
     AdminAuthModule,
     AdminModule,
+    ContentModule,
+    ProgressModule,
+    GamificationModule,
+    ExercisesModule,
   ],
 })
 export class AppModule {}

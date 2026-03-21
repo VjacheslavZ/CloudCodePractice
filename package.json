@@ -11,7 +11,7 @@
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "test": "node --test src/**/*.spec.ts",
+    "test": "node -r tsconfig-paths/register -r ts-node/register --test src/**/*.spec.ts",
     "seed": "ts-node src/prisma/seed.ts",
     "prepare": "husky"
   },
