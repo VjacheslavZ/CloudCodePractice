@@ -5,7 +5,7 @@ import { ExerciseType } from '@cro/shared';
 export class CreateSessionDto {
   @ApiProperty()
   @IsUUID()
-  wordSetId: string;
+  topicId: string;
 
   @ApiProperty({ enum: ExerciseType })
   @IsEnum(ExerciseType)

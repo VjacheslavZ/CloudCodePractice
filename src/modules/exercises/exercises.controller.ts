@@ -18,7 +18,7 @@ export class ExercisesController {
   @Post('sessions')
   @ApiOperation({ summary: 'Create an exercise session' })
   async createSession(@CurrentUser() user: UserPayload, @Body() dto: CreateSessionDto) {
-    return this.exercisesService.createSession(user.id, dto.wordSetId, dto.exerciseType);
+    return this.exercisesService.createSession(user.id, dto.topicId, dto.exerciseType);
   }
 
   @Get('sessions/:id')
@@ -38,8 +38,8 @@ export class ExercisesController {
   }
 
   @Post('cycle-reset')
-  @ApiOperation({ summary: 'Reset word cycle for a word set' })
+  @ApiOperation({ summary: 'Reset exercise cycle for a topic' })
   async resetCycle(@CurrentUser() user: UserPayload, @Body() dto: ResetCycleDto) {
-    return this.exercisesService.resetCycle(user.id, dto.wordSetId, dto.exerciseType);
+    return this.exercisesService.resetCycle(user.id, dto.topicId, dto.exerciseType);
   }
 }

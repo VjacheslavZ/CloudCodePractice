@@ -21,9 +21,9 @@ function createMockPrisma() {
 
 function createMockProgressService() {
   return {
-    initializeProgressForWordSet: mock.fn(async () => {}) as MockFn,
-    getNextWords: mock.fn() as MockFn,
-    markWordsSeen: mock.fn(async () => {}) as MockFn,
+    initializeProgressForTopic: mock.fn(async () => {}) as MockFn,
+    getNextItems: mock.fn() as MockFn,
+    markItemsSeen: mock.fn(async () => {}) as MockFn,
     recordAttempts: mock.fn(async () => {}) as MockFn,
     resetCycle: mock.fn(async () => {}) as MockFn,
   };

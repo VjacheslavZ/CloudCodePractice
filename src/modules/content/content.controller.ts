@@ -1,5 +1,6 @@
-import { Controller, Get, Param, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Param, ParseEnumPipe, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ExerciseType } from '@cro/shared';
 
 import { ContentService } from './content.service';
 
@@ -8,21 +9,24 @@ import { ContentService } from './content.service';
 export class ContentController {
   constructor(private contentService: ContentService) {}
 
-  @Get('categories')
-  @ApiOperation({ summary: 'List active categories' })
-  async getCategories() {
-    return this.contentService.getActiveCategories();
+  @Get('topics')
+  @ApiOperation({ summary: 'List active exercise topics' })
+  async getTopics() {
+    return this.contentService.getActiveTopics();
   }
 
-  @Get('categories/:id/word-sets')
-  @ApiOperation({ summary: 'List active word sets in a category' })
-  async getWordSets(@Param('id', ParseUUIDPipe) id: string) {
-    return this.contentService.getActiveWordSets(id);
+  @Get('topics/:id')
+  @ApiOperation({ summary: 'Get exercise topic by ID' })
+  async getTopic(@Param('id', ParseUUIDPipe) id: string) {
+    return this.contentService.getTopicById(id);
   }
 
-  @Get('word-sets/:id/words')
-  @ApiOperation({ summary: 'List words in a word set' })
-  async getWords(@Param('id', ParseUUIDPipe) id: string) {
-    return this.contentService.getWords(id);
+  @Get('topics/:topicId/items/:exerciseType')
+  @ApiOperation({ summary: 'Get items for a topic by exercise type' })
+  async getItems(
+    @Param('topicId', ParseUUIDPipe) topicId: string,
+    @Param('exerciseType', new ParseEnumPipe(ExerciseType)) exerciseType: ExerciseType,
+  ) {
+    return this.contentService.getItemsForTopic(topicId, exerciseType);
   }
 }

@@ -1,7 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { SessionStatus } from '@cro/shared';
-import { ExerciseType } from '@prisma/client';
-import { WORDS_PER_SESSION } from '@cro/shared/constants';
+import { ExerciseType } from '@cro/shared';
+import { ITEMS_PER_SESSION } from '@cro/shared/constants';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { ProgressService } from '../progress/progress.service';
@@ -15,17 +15,17 @@ export class ExercisesService {
     private gamificationService: GamificationService,
   ) {}
 
-  async createSession(userId: string, wordSetId: string, exerciseType: ExerciseType) {
-    await this.progressService.initializeProgressForWordSet(userId, wordSetId, exerciseType);
+  async createSession(userId: string, topicId: string, exerciseType: ExerciseType) {
+    await this.progressService.initializeProgressForTopic(userId, topicId, exerciseType);
 
-    const { words, cycleExhausted } = await this.progressService.getNextWords(
+    const { items, cycleExhausted } = await this.progressService.getNextItems(
       userId,
       exerciseType,
-      wordSetId,
-      WORDS_PER_SESSION,
+      topicId,
+      ITEMS_PER_SESSION,
     );
 
-    if (words.length === 0) {
+    if (items.length === 0) {
       return { cycleExhausted, session: null };
     }
 
@@ -33,9 +33,9 @@ export class ExercisesService {
       data: {
         userId,
         exerciseType,
-        wordSetId,
+        topicId,
         status: SessionStatus.IN_PROGRESS,
-        totalQuestions: words.length,
+        totalQuestions: items.length,
       },
     });
 
@@ -44,16 +44,12 @@ export class ExercisesService {
       session: {
         id: session.id,
         exerciseType: session.exerciseType,
-        wordSetId: session.wordSetId,
+        topicId: session.topicId,
         status: session.status,
         totalQuestions: session.totalQuestions,
-        words: words.map((w) => ({
-          wordId: w.id,
-          baseForm: w.baseForm,
-          pluralForm: w.pluralForm,
-          translationRu: w.translationRu,
-          translationUk: w.translationUk,
-          translationEn: w.translationEn,
+        items: items.map((item: Record<string, unknown>) => ({
+          type: exerciseType,
+          ...item,
         })),
       },
     };
@@ -62,16 +58,7 @@ export class ExercisesService {
   async getSession(userId: string, sessionId: string) {
     const session = await this.prisma.exerciseSession.findUnique({
       where: { id: sessionId },
-      include: {
-        wordSet: {
-          include: {
-            words: {
-              include: { exerciseConfigs: true },
-              orderBy: { sortOrder: 'asc' },
-            },
-          },
-        },
-      },
+      include: { topic: true },
     });
 
     if (!session) throw new NotFoundException('Session not found');
@@ -83,7 +70,7 @@ export class ExercisesService {
   async finishSession(
     userId: string,
     sessionId: string,
-    answers: { wordId: string; givenAnswer: string; isCorrect: boolean }[],
+    answers: { itemId: string; givenAnswer: string; isCorrect: boolean }[],
   ) {
     const session = await this.prisma.exerciseSession.findUnique({
       where: { id: sessionId },
@@ -101,21 +88,22 @@ export class ExercisesService {
     await this.prisma.sessionAnswer.createMany({
       data: answers.map((a) => ({
         sessionId,
-        wordId: a.wordId,
+        itemId: a.itemId,
         givenAnswer: a.givenAnswer,
         isCorrect: a.isCorrect,
       })),
     });
 
-    // Mark words as seen
-    const wordIds = answers.map((a) => a.wordId);
-    await this.progressService.markWordsSeen(userId, session.exerciseType, wordIds);
+    // Mark items as seen
+    const itemIds = answers.map((a) => a.itemId);
+    const exerciseType = session.exerciseType as ExerciseType;
+    await this.progressService.markItemsSeen(userId, exerciseType, itemIds);
 
     // Record attempt stats
     await this.progressService.recordAttempts(
       userId,
-      session.exerciseType,
-      answers.map((a) => ({ wordId: a.wordId, isCorrect: a.isCorrect })),
+      exerciseType,
+      answers.map((a) => ({ itemId: a.itemId, isCorrect: a.isCorrect })),
     );
 
     // Award XP and update streak
@@ -146,8 +134,8 @@ export class ExercisesService {
     };
   }
 
-  async resetCycle(userId: string, wordSetId: string, exerciseType: ExerciseType) {
-    await this.progressService.resetCycle(userId, exerciseType, wordSetId);
+  async resetCycle(userId: string, topicId: string, exerciseType: ExerciseType) {
+    await this.progressService.resetCycle(userId, exerciseType, topicId);
     return { success: true };
   }
 }

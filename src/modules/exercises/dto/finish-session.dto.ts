@@ -5,7 +5,7 @@ import { ApiProperty } from '@nestjs/swagger';
 class SessionAnswerItem {
   @ApiProperty()
   @IsUUID()
-  wordId: string;
+  itemId: string;
 
   @ApiProperty()
   @IsString()

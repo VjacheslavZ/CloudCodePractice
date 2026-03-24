@@ -21,7 +21,6 @@ enum NativeLanguage {
 enum ExerciseType {
   JEDNINA_MNOZINA
   FLASHCARDS
-  MULTIPLE_CHOICE
   FILL_IN_BLANK
 }
 
@@ -69,7 +68,7 @@ model User {
   updatedAt        DateTime        @updatedAt
 
   subscription     Subscription?
-  wordProgress     UserWordProgress[]
+  exerciseProgress UserExerciseProgress[]
   sessions         ExerciseSession[]
   streakLogs       StreakLog[]
 }
@@ -120,7 +119,7 @@ model WebhookEvent {
   createdAt       DateTime @default(now())
 }
 
-model Category {
+model ExerciseTopic {
   id        String    @id @default(uuid())
   nameHr    String
   nameRu    String
@@ -131,80 +130,92 @@ model Category {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  wordSets  WordSet[]
+  topicTypes          ExerciseTopicType[]
+  singularPluralItems SingularPluralItem[]
+  flashcardItems      FlashcardItem[]
+  fillInBlankItems    FillInBlankItem[]
+  sessions            ExerciseSession[]
+  exerciseProgress    UserExerciseProgress[]
 }
 
-model WordSet {
-  id         String    @id @default(uuid())
-  categoryId String
-  nameHr     String
-  nameRu     String
-  nameUk     String
-  nameEn     String
-  sortOrder  Int       @default(0)
-  isActive   Boolean   @default(true)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-
-  category   Category  @relation(fields: [categoryId], references: [id])
-  words      Word[]
-  sessions   ExerciseSession[]
-}
-
-model Word {
-  id                  String               @id @default(uuid())
-  wordSetId           String
-  baseForm            String
-  pluralForm          String?
-  translationRu       String
-  translationUk       String
-  translationEn       String
-  sentenceHr          String?
-  sentenceBlankAnswer String?
-  wrongOptions        Json?
-  sortOrder           Int                  @default(0)
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-
-  wordSet             WordSet              @relation(fields: [wordSetId], references: [id])
-  exerciseConfigs     WordExerciseConfig[]
-  wordProgress        UserWordProgress[]
-  sessionAnswers      SessionAnswer[]
-}
-
-model WordExerciseConfig {
+model ExerciseTopicType {
   id           String       @id @default(uuid())
-  wordId       String
+  topicId      String
   exerciseType ExerciseType
 
-  word         Word         @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  topic        ExerciseTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
 
-  @@unique([wordId, exerciseType])
+  @@unique([topicId, exerciseType])
 }
 
-model UserWordProgress {
-  id                 String       @id @default(uuid())
+model SingularPluralItem {
+  id            String        @id @default(dbgenerated("gen_random_uuid()"))
+  topicId       String
+  baseForm      String
+  pluralForm    String
+  translationRu String
+  translationUk String
+  translationEn String
+  sortOrder     Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  topic         ExerciseTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+}
+
+model FlashcardItem {
+  id            String        @id @default(dbgenerated("gen_random_uuid()"))
+  topicId       String
+  frontText     String
+  translationRu String
+  translationUk String
+  translationEn String
+  sortOrder     Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  topic         ExerciseTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+}
+
+model FillInBlankItem {
+  id            String        @id @default(dbgenerated("gen_random_uuid()"))
+  topicId       String
+  sentenceHr    String
+  blankAnswer   String
+  translationRu String
+  translationUk String
+  translationEn String
+  sortOrder     Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  topic         ExerciseTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+}
+
+model UserExerciseProgress {
+  id                 String        @id @default(uuid())
   userId             String
-  wordId             String
   exerciseType       ExerciseType
-  seenInCurrentCycle Boolean      @default(false)
-  cycleNumber        Int          @default(1)
-  totalAttempts      Int          @default(0)
-  correctAttempts    Int          @default(0)
+  itemId             String
+  topicId            String
+  seenInCurrentCycle Boolean       @default(false)
+  cycleNumber        Int           @default(1)
+  totalAttempts      Int           @default(0)
+  correctAttempts    Int           @default(0)
   lastSeenAt         DateTime?
   lastCorrectAt      DateTime?
 
-  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  word               Word         @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic              ExerciseTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, wordId, exerciseType])
+  @@unique([userId, exerciseType, itemId])
 }
 
 model ExerciseSession {
   id              String        @id @default(uuid())
   userId          String
   exerciseType    ExerciseType
-  wordSetId       String
+  topicId         String
   status          SessionStatus @default(IN_PROGRESS)
   totalQuestions  Int           @default(0)
   correctAnswers  Int           @default(0)
@@ -213,19 +224,18 @@ model ExerciseSession {
   completedAt     DateTime?
 
   user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  wordSet         WordSet       @relation(fields: [wordSetId], references: [id])
+  topic           ExerciseTopic @relation(fields: [topicId], references: [id])
   answers         SessionAnswer[]
 }
 
 model SessionAnswer {
   id          String          @id @default(uuid())
   sessionId   String
-  wordId      String
+  itemId      String
   givenAnswer String
   isCorrect   Boolean
 
   session     ExerciseSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  word        Word            @relation(fields: [wordId], references: [id])
 }
 
 model StreakLog {

@@ -175,43 +175,51 @@ WebhookEvent                 <- idempotent processing
   externalEventId @unique    <- idempotency key
   payload (Json)
 
-Category
+ExerciseTopic                <- flat top-level entity (replaces Category + WordSet)
   nameHr, nameRu, nameUk, nameEn
   sortOrder, isActive
-
-WordSet
-  categoryId, nameHr, nameRu, nameUk, nameEn
-  sortOrder, isActive
-
-Word
-  wordSetId
-  baseForm          <- Croatian (nominative case, singular)
-  pluralForm        <- Croatian (nominative case, plural)
-  translationRu, translationUk, translationEn
-  sentenceHr        <- sentence with {{BLANK}} for fill-in-the-blank
-  sentenceBlankAnswer
-  wrongOptions (Json)  <- 3 distractor options for multiple choice
-  sortOrder
   createdAt, updatedAt
 
-WordExerciseConfig
-  wordId + exerciseType @unique   <- which exercise types are enabled for a word
+ExerciseTopicType            <- which exercise types are enabled for a topic
+  topicId + exerciseType @unique (@@unique)
+  cascade delete from ExerciseTopic
 
-UserWordProgress
-  userId + wordId + exerciseType  @unique
+SingularPluralItem           <- items for "Jednina i množina" exercise
+  topicId
+  baseForm, pluralForm
+  translationRu, translationUk, translationEn
+  sortOrder
+
+FlashcardItem                <- items for flashcard exercise
+  topicId
+  frontText
+  translationRu, translationUk, translationEn
+  sortOrder
+
+FillInBlankItem              <- items for fill-in-the-blank exercise
+  topicId
+  sentenceHr                 <- sentence with {{BLANK}} placeholder
+  blankAnswer
+  translationRu, translationUk, translationEn
+  sortOrder
+
+UserExerciseProgress
+  userId + exerciseType + itemId @unique
+  topicId                    <- for filtering by topic
+  itemId (String)            <- generic ID, no FK (polymorphic across item tables)
   seenInCurrentCycle (Boolean)
   cycleNumber
   totalAttempts, correctAttempts
   lastSeenAt, lastCorrectAt
 
 ExerciseSession
-  userId, exerciseType, wordSetId
+  userId, exerciseType, topicId
   status (IN_PROGRESS|COMPLETED|ABANDONED)
   totalQuestions, correctAnswers, xpEarned
   createdAt, completedAt
 
 SessionAnswer
-  sessionId, wordId, givenAnswer, isCorrect
+  sessionId, itemId (String, no FK), givenAnswer, isCorrect
 
 StreakLog
   userId + date @unique   <- one record per day
@@ -230,9 +238,9 @@ Admin
 | --------------------- | -------------------------------------------------------------- |
 | `AuthModule`          | Google OAuth2 + Apple, email/password (admins), JWT (access 15m + refresh 30d in Redis) |
 | `UsersModule`         | profile, language, push token, account deletion (GDPR)         |
-| `ContentModule`       | CRUD for categories / word sets / words (write — admin only)   |
+| `ContentModule`       | CRUD for topics + per-type exercise items (write — admin only) |
 | `ExercisesModule`     | sessions, results processing                                   |
-| `ProgressModule`      | `UserWordProgress`, word cycle logic                           |
+| `ProgressModule`      | `UserExerciseProgress`, item cycle logic                       |
 | `SubscriptionsModule` | subscription status, plan list with currency                   |
 | `PaymentsModule`      | Stripe Checkout, Customer Portal, webhook                      |
 | `RevenueCatModule`    | RevenueCat webhook (HMAC verification)                         |
@@ -274,15 +282,15 @@ DELETE /users/me
 ### Content (public read)
 
 ```
-GET /content/categories
-GET /content/categories/:id/word-sets
-GET /content/word-sets/:id/words
+GET /content/topics                          # list active topics with exercise types
+GET /content/topics/:id                      # single topic with exercise types
+GET /content/topics/:topicId/items/:exerciseType  # items for a specific exercise type
 ```
 
 ### Exercises (protected by SubscriptionGuard)
 
 ```
-POST /exercises/sessions              # create session, get words + correct answers
+POST /exercises/sessions              # create session, get items + correct answers
 POST /exercises/sessions/:id/finish  # submit results, award XP
 GET  /exercises/sessions/:id         # get session data (includes correct answers)
 ```
@@ -305,10 +313,12 @@ POST /revenuecat/webhook             # HMAC verification
 ```
 POST /admin/admins                    # add new admin
 GET  /admin/admins                    # list all admins
-POST/PATCH/DELETE /admin/categories
-POST/PATCH/DELETE /admin/word-sets
-POST/PATCH/DELETE /admin/words
-PATCH /admin/words/:id/exercise-configs
+POST/PATCH/DELETE /admin/topics
+PATCH /admin/topics/:id/exercise-types
+POST/PATCH/DELETE /admin/singular-plural-items
+POST/PATCH/DELETE /admin/flashcard-items
+POST/PATCH/DELETE /admin/fill-in-blank-items
+GET  /admin/topics/:topicId/{type}-items  # list items by topic
 POST/PATCH        /admin/subscription-plans
 GET  /admin/users
 PATCH /admin/users/:id/block
@@ -360,101 +370,61 @@ The default admin account is created automatically when running the seed script.
 
 | Type                  | Mechanics                                               | Validation                                                                 |
 | --------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------- |
-| **Jednina i množina** | A word is shown -> user enters the plural form          | trim + lowercase + NFC normalization, client-side comparison with correct answer |
-| **Flashcards**        | Word -> tap "I knew it" / "I didn't know" (self-report) | `KNOWN` -> isCorrect=true; `UNKNOWN` -> isCorrect=false                         |
-| **Multiple choice**   | 4 options (1 correct + 3 from `wrongOptions`)           | Client compares selected option with correct answer (sent with session data)    |
-| **Fill-in-the-blank** | Sentence with a gap (`{{BLANK}}`)                       | Client-side comparison with `sentenceBlankAnswer` (sent with session data)      |
+| **Jednina i množina** | `baseForm` is shown -> user enters the plural form (SingularPluralItem) | trim + lowercase + NFC normalization, client-side comparison with `pluralForm` |
+| **Flashcards**        | `frontText` shown -> tap "I knew it" / "I didn't know" (FlashcardItem) | `KNOWN` -> isCorrect=true; `UNKNOWN` -> isCorrect=false |
+| **Fill-in-the-blank** | `sentenceHr` with `{{BLANK}}` placeholder (FillInBlankItem) | Client-side comparison with `blankAnswer` |
 
 ---
 
 ## Admin Panel — Content Management UI
 
-### Content hierarchy
+### Content structure
 
-Admin manages content in a three-level hierarchy: **Category → Word Set → Word**. Each level has a list view and a create/edit form.
+Admin manages content as flat **ExerciseTopic** entities. Each topic can have multiple exercise types enabled, and each exercise type has its own dedicated item table with type-specific fields.
 
-### Category management
+### Topic management
 
-- **List view**: table with columns — name (in admin's language), `sortOrder`, `isActive` toggle, edit/delete actions
+- **List view**: table with columns — name (English), enabled exercise types (chip badges), `sortOrder`, `isActive` toggle, edit/delete actions. Clicking a row navigates to the exercise items page for that topic.
 - **Create/Edit form**: `nameHr`, `nameRu`, `nameUk`, `nameEn`, `sortOrder` (number input), `isActive` (checkbox, default: true)
-- **Delete**: soft-check — block deletion if category has word sets (show error: "Remove all word sets first")
+- **Delete**: block deletion if topic has any items (show error)
 
-### Word Set management
+### Exercise items management
 
-- **List view**: filtered by selected category. Columns — name, word count, `sortOrder`, `isActive` toggle, edit/delete actions
-- **Create/Edit form**: select parent category, `nameHr`, `nameRu`, `nameUk`, `nameEn`, `sortOrder`, `isActive`
-- **Delete**: block if word set has words
+- **Route**: `/topics/:topicId/items` — tabbed interface with one tab per exercise type
+- **Exercise type toggles**: switch controls at the top of the page to enable/disable each exercise type for the topic (maps to `ExerciseTopicType` records via `PATCH /admin/topics/:id/exercise-types`)
+- **Tabs**: Type the Answer, Flashcards, Fill in the Blank — each tab shows a table of items with inline create/edit forms
 
-### Word management
+#### Type the Answer items
+- Fields: `baseForm`, `pluralForm`, `translationRu`, `translationUk`, `translationEn`, `sortOrder`
 
-- **List view**: filtered by selected word set. Columns — `baseForm`, `pluralForm`, translations (collapsible), enabled exercise types (icon badges), edit/delete actions. Sortable by `sortOrder`.
-- **Create/Edit form** — split into sections:
+#### Flashcard items
+- Fields: `frontText`, `translationRu`, `translationUk`, `translationEn`, `sortOrder`
 
-#### Section 1 — Base fields (required for all exercise types)
-
-| Field             | Input type | Validation                          |
-| ----------------- | ---------- | ----------------------------------- |
-| `baseForm`        | text       | required, Croatian characters       |
-| `translationRu`   | text       | required                            |
-| `translationUk`   | text       | required                            |
-| `translationEn`   | text       | required                            |
-| `sortOrder`       | number     | required, integer ≥ 0              |
-
-#### Section 2 — Jednina i množina fields
-
-| Field        | Input type | Validation                                             |
-| ------------ | ---------- | ------------------------------------------------------ |
-| `pluralForm` | text       | required if exercise type enabled, Croatian characters  |
-
-- Admin enters the correct plural form. The student will see `baseForm` and must type the plural.
-- **Preview**: show a read-only card "Student sees: **[baseForm]** → enters: **___**. Correct answer: **[pluralForm]**"
-
-#### Section 3 — Flashcards fields
-
-No additional fields needed — flashcards use `baseForm` + translations (from Section 1). The student sees the Croatian word and self-reports whether they knew the translation.
-
-- **Preview**: show a read-only flashcard "Front: **[baseForm]** → Back: **[translationRu / translationUk / translationEn]** (based on user's language)"
-
-#### Section 4 — Exercise type toggles
-
-A row of toggle switches for each exercise type (maps to `WordExerciseConfig`):
-
-| Toggle                | Enabled when                                             |
-| --------------------- | -------------------------------------------------------- |
-| Jednina i množina     | `pluralForm` is filled in                                |
-| Flashcards            | always available (base fields are sufficient)            |
-| Multiple choice       | `wrongOptions` has 3 entries (Phase 3+)                  |
-| Fill-in-the-blank     | `sentenceHr` and `sentenceBlankAnswer` are filled (Phase 3+) |
-
-- Toggles for Multiple choice and Fill-in-the-blank are **disabled/hidden** until Phase 3 Step 8 adds those types
-- If admin tries to enable a toggle but required fields are missing → show inline validation error ("Fill in `pluralForm` to enable this exercise type")
-- Saving the form sends `PATCH /admin/words/:id/exercise-configs` with the updated toggle states
-
-### Bulk operations
-
-- **Word list**: checkbox column + bulk actions: "Enable exercise type for selected", "Disable exercise type for selected"
-- Useful for enabling Flashcards across an entire word set at once
+#### Fill in the Blank items
+- Fields: `sentenceHr` (with `{{BLANK}}` placeholder), `blankAnswer`, `translationRu`, `translationUk`, `translationEn`, `sortOrder`
 
 ---
 
-## Word Cycle Logic
+## Item Cycle Logic
 
 ```
-getNextWords(userId, exerciseType, wordSetId, count):
+getNextItems(userId, exerciseType, topicId, count):
 
-1. Find words with seenInCurrentCycle = false
-2. If enough -> return them
-3. If words are exhausted -> offer user to reset:
-     UPDATE userWordProgress
+1. Find items with seenInCurrentCycle = false in UserExerciseProgress
+2. If enough -> fetch actual items from type-specific table, return them
+3. If items are exhausted -> offer user to reset:
+     UPDATE UserExerciseProgress
      SET seenInCurrentCycle = false,
          cycleNumber = cycleNumber + 1
-     WHERE userId AND exerciseType AND wordSetId
-4. If user agrees, return first N words from the reset cycle
+     WHERE userId AND exerciseType AND topicId
+4. If user agrees, return first N items from the reset cycle
 
-On session finish -> bulk markWordsSeen() -> seenInCurrentCycle = true for all answered words
+On session finish -> bulk markItemsSeen() -> seenInCurrentCycle = true for all answered items
 ```
 
-**New users**: On first opening of a word set — create `UserWordProgress` records for all words with `seenInCurrentCycle = false`. This simplifies cycle queries.
+**New users**: On first session for a topic+exerciseType — create `UserExerciseProgress` records for all items with `seenInCurrentCycle = false`. Uses two-query pattern: progress table for unseen itemIds, then fetch items from the correct type-specific table.
+
+**Note**: `itemId` in `UserExerciseProgress` is a generic string (no FK) since items live in different tables per exercise type. Validation happens at the application layer.
 
 ---
 
@@ -581,17 +551,17 @@ Priorities:
 
 ### Phase 2 — Content + Exercise Engine
 
-- ContentModule (CRUD + Redis cache)
-- Database seed script (`prisma db seed`) — initial categories, word sets, words, and default admin account (test@gmail.com / zxcv1234)
-- Admin UI: categories, word sets, words
+- ContentModule (CRUD for ExerciseTopics + per-type exercise items + Redis cache)
+- Database seed script (`prisma db seed`) — initial topics, exercise items (all 3 types), and default admin account (test@gmail.com / zxcv1234)
+- Admin UI: topics management, tabbed exercise item management (3 tabs per topic), exercise type toggles
 - Admin UI: "Add Admin" form (manage admin accounts from the panel)
-- ProgressModule + cycle logic
-- ExercisesModule: sessions, results processing, 2 exercise types (Jednina i množina + Flashcards)
-- Exercise screens on web for these 2 types
+- ProgressModule + item cycle logic (UserExerciseProgress with generic itemId)
+- ExercisesModule: sessions, results processing, all 3 exercise types (Jednina i množina, Flashcards, Fill-in-the-blank)
+- Exercise screens on web for all 3 types (discriminated union ExerciseItem type)
 - GamificationModule: XP + streak
-- Unit tests: word cycle, results processing, streak
+- Unit tests: item cycle, results processing, streak
 
-**Result**: 2 exercise types working. Content created via admin panel.
+**Result**: All 3 exercise types working. Content created via admin panel with per-type item tables.
 
 ### Phase 3 — Mobile App
 
@@ -686,18 +656,18 @@ Priorities:
 
 ---
 
-**Step 8 — Remaining exercise types on web**
+**Step 8 — Exercise screens on mobile (all 3 types already implemented in Phase 2)**
 
-- Add exercise types 3-4 (Multiple choice + Fill-in-the-blank) to backend and web
-- Unit tests for all 4 exercise types
+- Port all 3 exercise type screens from web to mobile (Jednina i množina, Flashcards, Fill-in-the-blank)
+- All backend endpoints and item tables already exist from Phase 2
 
-**Result**: All 4 exercise types working on web.
+**Result**: All 3 exercise types working on mobile.
 
 ---
 
 **Step 9 — Exercise screens + gamification on mobile**
 
-- Exercise screens for all 4 exercise types (port from web)
+- Exercise screens for all 3 exercise types (port from web)
 - Gamification display: XP + streak in tab bar
 
 **Result**: Mobile app with auth, exercises, and gamification — ready for subscriptions.
@@ -795,13 +765,13 @@ OTA updates via `expo-updates` for JS changes without resubmitting to stores.
 
 1. `docker compose up -d` (in `cro-api` repo) -> `npm run dev` in each repo -> all 4 apps start without errors
 2. Log in via Google on web -> land on language selection screen -> choose language -> redirected to home
-3. Open a word set, start a "Jednina i množina" session, enter correct and incorrect answers — verify XP and word status
-4. Complete all words in a set -> confirm the cycle resets and words are shown again when user confirms reset
+3. Browse topics, select a topic, choose exercise type -> start session -> answer items -> verify XP earned
+4. Complete all items in a topic for an exercise type -> confirm the cycle resets when user confirms reset
 5. Streak: log in on two consecutive days -> confirm streak = 2
 6. Open paywall -> create a Stripe Checkout session -> complete test payment -> confirm status changed to ACTIVE
 7. Log in to admin panel with default credentials (test@gmail.com / zxcv1234) -> land on admin dashboard
 8. Add a new admin account via "Add Admin" form -> log out -> log in with the new account -> confirm access works
-9. Admin: create a category -> word set -> word with translations -> confirm word appears in the app
+9. Admin: create a topic -> add items (all 3 types) -> enable exercise types -> confirm items appear in the student app
 10. Admin: change subscription price -> confirm new price is displayed in the app
 11. `npm test` in each repo -> all tests pass
 12. `npm run lint` and `npm run typecheck` in each repo -> no errors
@@ -921,9 +891,10 @@ git commit -m "chore: update shared submodule"
 
 ## Critical Files for Implementation
 
-- `shared/src/types/index.ts` (in `cro-shared` submodule) — shared TS types; define in Phase 1
-- `src/prisma/schema.prisma` (in `cro-api`) — full data schema; migrate before any module development
-- `src/modules/progress/progress.service.ts` (in `cro-api`) — word cycle logic; most critical business logic
+- `shared/src/types/index.ts` (in `cro-shared` submodule) — shared TS types including ExerciseItem discriminated union
+- `src/prisma/schema.prisma` (in `cro-api`) — full data schema with per-type item tables; migrate before any module development
+- `src/modules/content/content.service.ts` (in `cro-api`) — topics + per-type item CRUD, generic getItemsForTopic/getItemsByIds
+- `src/modules/progress/progress.service.ts` (in `cro-api`) — item cycle logic; most critical business logic
 - `src/modules/payments/payments.service.ts` (in `cro-api`) — webhook + idempotency; bugs = financial losses
 - `docker-compose.yml` (in `cro-api`) — local dev stack
 - `.husky/pre-commit` + lint-staged config (in each repo) — pre-commit gates

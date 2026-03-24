@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, ExerciseType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -28,62 +28,9 @@ async function seedAdmin() {
 }
 
 async function seedContent() {
-  // --- Categories ---
-  const categories = [
+  // --- Exercise Topics ---
+  const topicsData = [
     {
-      nameHr: 'Imenice',
-      nameRu: 'Существительные',
-      nameUk: 'Іменники',
-      nameEn: 'Nouns',
-      sortOrder: 1,
-    },
-    {
-      nameHr: 'Pridjevi',
-      nameRu: 'Прилагательные',
-      nameUk: 'Прикметники',
-      nameEn: 'Adjectives',
-      sortOrder: 2,
-    },
-    {
-      nameHr: 'Glagoli',
-      nameRu: 'Глаголы',
-      nameUk: 'Дієслова',
-      nameEn: 'Verbs',
-      sortOrder: 3,
-    },
-  ];
-
-  const categoryRecords = [];
-  for (const cat of categories) {
-    const record = await prisma.category
-      .upsert({
-        where: { id: cat.nameEn },
-        update: cat,
-        create: { ...cat, id: undefined },
-      })
-      .catch(async () => {
-        // upsert by id won't work for new records, use findFirst + create/update
-        const existing = await prisma.category.findFirst({
-          where: { nameEn: cat.nameEn },
-        });
-        if (existing) {
-          return prisma.category.update({
-            where: { id: existing.id },
-            data: cat,
-          });
-        }
-        return prisma.category.create({ data: cat });
-      });
-    categoryRecords.push(record);
-  }
-
-  console.log(`Seeded ${categoryRecords.length} categories`);
-
-  // --- Word Sets ---
-  const wordSetsData = [
-    // Nouns
-    {
-      categoryName: 'Nouns',
       nameHr: 'Hrana',
       nameRu: 'Еда',
       nameUk: 'Їжа',
@@ -91,84 +38,62 @@ async function seedContent() {
       sortOrder: 1,
     },
     {
-      categoryName: 'Nouns',
       nameHr: 'Životinje',
       nameRu: 'Животные',
       nameUk: 'Тварини',
       nameEn: 'Animals',
       sortOrder: 2,
     },
-    // Adjectives
     {
-      categoryName: 'Adjectives',
       nameHr: 'Boje',
       nameRu: 'Цвета',
       nameUk: 'Кольори',
       nameEn: 'Colors',
-      sortOrder: 1,
+      sortOrder: 3,
     },
     {
-      categoryName: 'Adjectives',
       nameHr: 'Veličine',
       nameRu: 'Размеры',
       nameUk: 'Розміри',
       nameEn: 'Sizes',
-      sortOrder: 2,
+      sortOrder: 4,
     },
-    // Verbs
     {
-      categoryName: 'Verbs',
       nameHr: 'Svakodnevne radnje',
       nameRu: 'Повседневные действия',
       nameUk: 'Щоденні дії',
       nameEn: 'Daily actions',
-      sortOrder: 1,
+      sortOrder: 5,
     },
     {
-      categoryName: 'Verbs',
       nameHr: 'Kretanje',
       nameRu: 'Движение',
       nameUk: 'Рух',
       nameEn: 'Movement',
-      sortOrder: 2,
+      sortOrder: 6,
     },
   ];
 
-  const wordSetRecords: Record<string, { id: string }> = {};
-  for (const ws of wordSetsData) {
-    const category = categoryRecords.find((c) => c.nameEn === ws.categoryName)!;
-    const existing = await prisma.wordSet.findFirst({
-      where: { nameEn: ws.nameEn, categoryId: category.id },
+  const topicRecords: Record<string, { id: string }> = {};
+  for (const t of topicsData) {
+    const existing = await prisma.exerciseTopic.findFirst({
+      where: { nameEn: t.nameEn },
     });
 
-    const wsData = {
-      nameHr: ws.nameHr,
-      nameRu: ws.nameRu,
-      nameUk: ws.nameUk,
-      nameEn: ws.nameEn,
-      sortOrder: ws.sortOrder,
-      categoryId: category.id,
-    };
-
     const record = existing
-      ? await prisma.wordSet.update({
-          where: { id: existing.id },
-          data: wsData,
-        })
-      : await prisma.wordSet.create({
-          data: wsData,
-        });
+      ? await prisma.exerciseTopic.update({ where: { id: existing.id }, data: t })
+      : await prisma.exerciseTopic.create({ data: t });
 
-    wordSetRecords[ws.nameEn] = record;
+    topicRecords[t.nameEn] = record;
   }
 
-  console.log(`Seeded ${Object.keys(wordSetRecords).length} word sets`);
+  console.log(`Seeded ${Object.keys(topicRecords).length} topics`);
 
-  // --- Words ---
-  const wordsData = [
+  // --- Singular Plural Items (Food & Animals) ---
+  const singularPluralData = [
     // Food
     {
-      wordSet: 'Food',
+      topic: 'Food',
       baseForm: 'kruh',
       pluralForm: 'kruhovi',
       translationRu: 'хлеб',
@@ -177,53 +102,44 @@ async function seedContent() {
       sortOrder: 1,
     },
     {
-      wordSet: 'Food',
-      baseForm: 'mlijeko',
-      pluralForm: null,
-      translationRu: 'молоко',
-      translationUk: 'молоко',
-      translationEn: 'milk',
-      sortOrder: 2,
-    },
-    {
-      wordSet: 'Food',
+      topic: 'Food',
       baseForm: 'jabuka',
       pluralForm: 'jabuke',
       translationRu: 'яблоко',
       translationUk: 'яблуко',
       translationEn: 'apple',
-      sortOrder: 3,
+      sortOrder: 2,
     },
     {
-      wordSet: 'Food',
+      topic: 'Food',
       baseForm: 'sir',
       pluralForm: 'sirevi',
       translationRu: 'сыр',
       translationUk: 'сир',
       translationEn: 'cheese',
-      sortOrder: 4,
+      sortOrder: 3,
     },
     {
-      wordSet: 'Food',
+      topic: 'Food',
       baseForm: 'voda',
       pluralForm: 'vode',
       translationRu: 'вода',
       translationUk: 'вода',
       translationEn: 'water',
-      sortOrder: 5,
+      sortOrder: 4,
     },
     {
-      wordSet: 'Food',
+      topic: 'Food',
       baseForm: 'riba',
       pluralForm: 'ribe',
       translationRu: 'рыба',
       translationUk: 'риба',
       translationEn: 'fish',
-      sortOrder: 6,
+      sortOrder: 5,
     },
     // Animals
     {
-      wordSet: 'Animals',
+      topic: 'Animals',
       baseForm: 'pas',
       pluralForm: 'psi',
       translationRu: 'собака',
@@ -232,7 +148,7 @@ async function seedContent() {
       sortOrder: 1,
     },
     {
-      wordSet: 'Animals',
+      topic: 'Animals',
       baseForm: 'mačka',
       pluralForm: 'mačke',
       translationRu: 'кошка',
@@ -241,7 +157,7 @@ async function seedContent() {
       sortOrder: 2,
     },
     {
-      wordSet: 'Animals',
+      topic: 'Animals',
       baseForm: 'ptica',
       pluralForm: 'ptice',
       translationRu: 'птица',
@@ -250,64 +166,158 @@ async function seedContent() {
       sortOrder: 3,
     },
     {
-      wordSet: 'Animals',
-      baseForm: 'riba',
-      pluralForm: 'ribe',
-      translationRu: 'рыба',
-      translationUk: 'риба',
-      translationEn: 'fish',
-      sortOrder: 4,
-    },
-    {
-      wordSet: 'Animals',
+      topic: 'Animals',
       baseForm: 'konj',
       pluralForm: 'konji',
       translationRu: 'лошадь',
       translationUk: 'кінь',
       translationEn: 'horse',
+      sortOrder: 4,
+    },
+  ];
+
+  for (const item of singularPluralData) {
+    const topicId = topicRecords[item.topic].id;
+    const existing = await prisma.singularPluralItem.findFirst({
+      where: { topicId, baseForm: item.baseForm },
+    });
+    if (!existing) {
+      await prisma.singularPluralItem.create({
+        data: {
+          topicId,
+          baseForm: item.baseForm,
+          pluralForm: item.pluralForm,
+          translationRu: item.translationRu,
+          translationUk: item.translationUk,
+          translationEn: item.translationEn,
+          sortOrder: item.sortOrder,
+        },
+      });
+    }
+  }
+
+  console.log(`Seeded ${singularPluralData.length} singular/plural items`);
+
+  // --- Flashcard Items (all topics) ---
+  const flashcardData = [
+    // Food
+    {
+      topic: 'Food',
+      frontText: 'kruh',
+      translationRu: 'хлеб',
+      translationUk: 'хліб',
+      translationEn: 'bread',
+      sortOrder: 1,
+    },
+    {
+      topic: 'Food',
+      frontText: 'mlijeko',
+      translationRu: 'молоко',
+      translationUk: 'молоко',
+      translationEn: 'milk',
+      sortOrder: 2,
+    },
+    {
+      topic: 'Food',
+      frontText: 'jabuka',
+      translationRu: 'яблоко',
+      translationUk: 'яблуко',
+      translationEn: 'apple',
+      sortOrder: 3,
+    },
+    {
+      topic: 'Food',
+      frontText: 'sir',
+      translationRu: 'сыр',
+      translationUk: 'сир',
+      translationEn: 'cheese',
+      sortOrder: 4,
+    },
+    {
+      topic: 'Food',
+      frontText: 'voda',
+      translationRu: 'вода',
+      translationUk: 'вода',
+      translationEn: 'water',
       sortOrder: 5,
+    },
+    {
+      topic: 'Food',
+      frontText: 'riba',
+      translationRu: 'рыба',
+      translationUk: 'риба',
+      translationEn: 'fish',
+      sortOrder: 6,
+    },
+    // Animals
+    {
+      topic: 'Animals',
+      frontText: 'pas',
+      translationRu: 'собака',
+      translationUk: 'собака',
+      translationEn: 'dog',
+      sortOrder: 1,
+    },
+    {
+      topic: 'Animals',
+      frontText: 'mačka',
+      translationRu: 'кошка',
+      translationUk: 'кішка',
+      translationEn: 'cat',
+      sortOrder: 2,
+    },
+    {
+      topic: 'Animals',
+      frontText: 'ptica',
+      translationRu: 'птица',
+      translationUk: 'птах',
+      translationEn: 'bird',
+      sortOrder: 3,
+    },
+    {
+      topic: 'Animals',
+      frontText: 'konj',
+      translationRu: 'лошадь',
+      translationUk: 'кінь',
+      translationEn: 'horse',
+      sortOrder: 4,
     },
     // Colors
     {
-      wordSet: 'Colors',
-      baseForm: 'crven',
-      pluralForm: null,
+      topic: 'Colors',
+      frontText: 'crven',
       translationRu: 'красный',
       translationUk: 'червоний',
       translationEn: 'red',
       sortOrder: 1,
     },
     {
-      wordSet: 'Colors',
-      baseForm: 'plav',
-      pluralForm: null,
+      topic: 'Colors',
+      frontText: 'plav',
       translationRu: 'синий',
       translationUk: 'синій',
       translationEn: 'blue',
       sortOrder: 2,
     },
     {
-      wordSet: 'Colors',
-      baseForm: 'zelen',
-      pluralForm: null,
+      topic: 'Colors',
+      frontText: 'zelen',
       translationRu: 'зелёный',
       translationUk: 'зелений',
       translationEn: 'green',
       sortOrder: 3,
     },
     {
-      wordSet: 'Colors',
-      baseForm: 'bijel',
-      pluralForm: null,
+      topic: 'Colors',
+      frontText: 'bijel',
       translationRu: 'белый',
       translationUk: 'білий',
       translationEn: 'white',
       sortOrder: 4,
     },
     {
-      wordSet: 'Colors',
-      baseForm: 'crn',
-      pluralForm: null,
+      topic: 'Colors',
+      frontText: 'crn',
       translationRu: 'чёрный',
       translationUk: 'чорний',
       translationEn: 'black',
@@ -315,91 +325,73 @@ async function seedContent() {
     },
     // Sizes
     {
-      wordSet: 'Sizes',
-      baseForm: 'velik',
-      pluralForm: null,
+      topic: 'Sizes',
+      frontText: 'velik',
       translationRu: 'большой',
       translationUk: 'великий',
       translationEn: 'big',
       sortOrder: 1,
     },
     {
-      wordSet: 'Sizes',
-      baseForm: 'mali',
-      pluralForm: null,
+      topic: 'Sizes',
+      frontText: 'mali',
       translationRu: 'маленький',
       translationUk: 'малий',
       translationEn: 'small',
       sortOrder: 2,
     },
     {
-      wordSet: 'Sizes',
-      baseForm: 'visok',
-      pluralForm: null,
+      topic: 'Sizes',
+      frontText: 'visok',
       translationRu: 'высокий',
       translationUk: 'високий',
       translationEn: 'tall',
       sortOrder: 3,
     },
     {
-      wordSet: 'Sizes',
-      baseForm: 'nizak',
-      pluralForm: null,
+      topic: 'Sizes',
+      frontText: 'nizak',
       translationRu: 'низкий',
       translationUk: 'низький',
       translationEn: 'short',
       sortOrder: 4,
     },
-    {
-      wordSet: 'Sizes',
-      baseForm: 'širok',
-      pluralForm: null,
-      translationRu: 'широкий',
-      translationUk: 'широкий',
-      translationEn: 'wide',
-      sortOrder: 5,
-    },
     // Daily actions
     {
-      wordSet: 'Daily actions',
-      baseForm: 'jesti',
-      pluralForm: null,
+      topic: 'Daily actions',
+      frontText: 'jesti',
       translationRu: 'есть',
       translationUk: 'їсти',
       translationEn: 'to eat',
       sortOrder: 1,
     },
     {
-      wordSet: 'Daily actions',
-      baseForm: 'piti',
-      pluralForm: null,
+      topic: 'Daily actions',
+      frontText: 'piti',
       translationRu: 'пить',
       translationUk: 'пити',
       translationEn: 'to drink',
       sortOrder: 2,
     },
     {
-      wordSet: 'Daily actions',
-      baseForm: 'spavati',
-      pluralForm: null,
+      topic: 'Daily actions',
+      frontText: 'spavati',
       translationRu: 'спать',
       translationUk: 'спати',
       translationEn: 'to sleep',
       sortOrder: 3,
     },
     {
-      wordSet: 'Daily actions',
-      baseForm: 'raditi',
-      pluralForm: null,
+      topic: 'Daily actions',
+      frontText: 'raditi',
       translationRu: 'работать',
       translationUk: 'працювати',
       translationEn: 'to work',
       sortOrder: 4,
     },
     {
-      wordSet: 'Daily actions',
-      baseForm: 'čitati',
-      pluralForm: null,
+      topic: 'Daily actions',
+      frontText: 'čitati',
       translationRu: 'читать',
       translationUk: 'читати',
       translationEn: 'to read',
@@ -407,45 +399,40 @@ async function seedContent() {
     },
     // Movement
     {
-      wordSet: 'Movement',
-      baseForm: 'ići',
-      pluralForm: null,
+      topic: 'Movement',
+      frontText: 'ići',
       translationRu: 'идти',
       translationUk: 'йти',
       translationEn: 'to go',
       sortOrder: 1,
     },
     {
-      wordSet: 'Movement',
-      baseForm: 'trčati',
-      pluralForm: null,
+      topic: 'Movement',
+      frontText: 'trčati',
       translationRu: 'бежать',
       translationUk: 'бігти',
       translationEn: 'to run',
       sortOrder: 2,
     },
     {
-      wordSet: 'Movement',
-      baseForm: 'plivati',
-      pluralForm: null,
+      topic: 'Movement',
+      frontText: 'plivati',
       translationRu: 'плавать',
       translationUk: 'плавати',
       translationEn: 'to swim',
       sortOrder: 3,
     },
     {
-      wordSet: 'Movement',
-      baseForm: 'letjeti',
-      pluralForm: null,
+      topic: 'Movement',
+      frontText: 'letjeti',
       translationRu: 'летать',
       translationUk: 'літати',
       translationEn: 'to fly',
       sortOrder: 4,
     },
     {
-      wordSet: 'Movement',
-      baseForm: 'hodati',
-      pluralForm: null,
+      topic: 'Movement',
+      frontText: 'hodati',
       translationRu: 'ходить',
       translationUk: 'ходити',
       translationEn: 'to walk',
@@ -453,47 +440,101 @@ async function seedContent() {
     },
   ];
 
-  let wordCount = 0;
-  for (const w of wordsData) {
-    const wordSetRecord = wordSetRecords[w.wordSet];
-    if (!wordSetRecord) continue;
-
-    const wordData = {
-      baseForm: w.baseForm,
-      pluralForm: w.pluralForm,
-      translationRu: w.translationRu,
-      translationUk: w.translationUk,
-      translationEn: w.translationEn,
-      sortOrder: w.sortOrder,
-      wordSetId: wordSetRecord.id,
-    };
-
-    const existing = await prisma.word.findFirst({
-      where: { wordSetId: wordSetRecord.id, baseForm: w.baseForm },
+  for (const item of flashcardData) {
+    const topicId = topicRecords[item.topic].id;
+    const existing = await prisma.flashcardItem.findFirst({
+      where: { topicId, frontText: item.frontText },
     });
-
-    const word = existing
-      ? await prisma.word.update({
-          where: { id: existing.id },
-          data: wordData,
-        })
-      : await prisma.word.create({
-          data: wordData,
-        });
-
-    // Exercise configs: FLASHCARDS for all words, JEDNINA_MNOZINA for words with pluralForm
-    await prisma.wordExerciseConfig.createMany({
-      data: [
-        { wordId: word.id, exerciseType: 'FLASHCARDS' },
-        ...(w.pluralForm ? [{ wordId: word.id, exerciseType: 'JEDNINA_MNOZINA' as const }] : []),
-      ],
-      skipDuplicates: true,
-    });
-
-    wordCount++;
+    if (!existing) {
+      await prisma.flashcardItem.create({
+        data: {
+          topicId,
+          frontText: item.frontText,
+          translationRu: item.translationRu,
+          translationUk: item.translationUk,
+          translationEn: item.translationEn,
+          sortOrder: item.sortOrder,
+        },
+      });
+    }
   }
 
-  console.log(`Seeded ${wordCount} words with exercise configs`);
+  console.log(`Seeded ${flashcardData.length} flashcard items`);
+
+  // --- Fill In Blank Items (sample) ---
+  const fillInBlankData = [
+    {
+      topic: 'Food',
+      sentenceHr: 'Ja jedem {{BLANK}} za doručak.',
+      blankAnswer: 'kruh',
+      translationRu: 'Я ем {{BLANK}} на завтрак.',
+      translationUk: 'Я їм {{BLANK}} на сніданок.',
+      translationEn: 'I eat {{BLANK}} for breakfast.',
+      sortOrder: 1,
+    },
+    {
+      topic: 'Food',
+      sentenceHr: 'Želim čašu {{BLANK}}.',
+      blankAnswer: 'vode',
+      translationRu: 'Я хочу стакан {{BLANK}}.',
+      translationUk: 'Я хочу склянку {{BLANK}}.',
+      translationEn: 'I want a glass of {{BLANK}}.',
+      sortOrder: 2,
+    },
+    {
+      topic: 'Animals',
+      sentenceHr: 'Moj {{BLANK}} voli trčati u parku.',
+      blankAnswer: 'pas',
+      translationRu: 'Мой {{BLANK}} любит бегать в парке.',
+      translationUk: 'Мій {{BLANK}} любить бігати в парку.',
+      translationEn: 'My {{BLANK}} likes to run in the park.',
+      sortOrder: 1,
+    },
+  ];
+
+  for (const item of fillInBlankData) {
+    const topicId = topicRecords[item.topic].id;
+    const existing = await prisma.fillInBlankItem.findFirst({
+      where: { topicId, sentenceHr: item.sentenceHr },
+    });
+    if (!existing) {
+      await prisma.fillInBlankItem.create({
+        data: {
+          topicId,
+          sentenceHr: item.sentenceHr,
+          blankAnswer: item.blankAnswer,
+          translationRu: item.translationRu,
+          translationUk: item.translationUk,
+          translationEn: item.translationEn,
+          sortOrder: item.sortOrder,
+        },
+      });
+    }
+  }
+
+  console.log(`Seeded ${fillInBlankData.length} fill-in-blank items`);
+
+  // --- Topic Types (link topics to their exercise types) ---
+  const topicTypesData = [
+    { topic: 'Food', types: ['JEDNINA_MNOZINA', 'FLASHCARDS', 'FILL_IN_BLANK'] },
+    { topic: 'Animals', types: ['JEDNINA_MNOZINA', 'FLASHCARDS', 'FILL_IN_BLANK'] },
+    { topic: 'Colors', types: ['FLASHCARDS'] },
+    { topic: 'Sizes', types: ['FLASHCARDS'] },
+    { topic: 'Daily actions', types: ['FLASHCARDS'] },
+    { topic: 'Movement', types: ['FLASHCARDS'] },
+  ];
+
+  for (const tt of topicTypesData) {
+    const topicId = topicRecords[tt.topic].id;
+    for (const exerciseType of tt.types) {
+      await prisma.exerciseTopicType.createMany({
+        data: [{ topicId, exerciseType: exerciseType as ExerciseType }],
+        skipDuplicates: true,
+      });
+    }
+  }
+
+  console.log('Seeded topic exercise types');
 }
 
 async function main() {

@@ -3,7 +3,7 @@ import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { ExerciseType } from '@cro/shared';
 
-class ExerciseConfigItem {
+class TopicTypeConfig {
   @ApiProperty({ enum: ExerciseType })
   @IsEnum(ExerciseType)
   exerciseType: ExerciseType;
@@ -13,10 +13,10 @@ class ExerciseConfigItem {
   enabled: boolean;
 }
 
-export class UpdateExerciseConfigsDto {
-  @ApiProperty({ type: [ExerciseConfigItem] })
+export class UpdateTopicTypesDto {
+  @ApiProperty({ type: [TopicTypeConfig] })
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => ExerciseConfigItem)
-  configs: ExerciseConfigItem[];
+  @Type(() => TopicTypeConfig)
+  configs: TopicTypeConfig[];
 }

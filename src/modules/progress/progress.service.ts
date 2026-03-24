@@ -1,31 +1,30 @@
 import { Injectable } from '@nestjs/common';
-import { ExerciseType } from '@prisma/client';
+import { ExerciseType } from '@cro/shared';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { ContentService } from '../content/content.service';
 
 @Injectable()
 export class ProgressService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private contentService: ContentService,
+  ) {}
 
-  async initializeProgressForWordSet(
+  async initializeProgressForTopic(
     userId: string,
-    wordSetId: string,
+    topicId: string,
     exerciseType: ExerciseType,
   ): Promise<void> {
-    const words = await this.prisma.word.findMany({
-      where: {
-        wordSetId,
-        exerciseConfigs: { some: { exerciseType } },
-      },
-      select: { id: true },
-    });
+    const items = await this.contentService.getItemsForTopic(topicId, exerciseType);
 
-    if (words.length === 0) return;
+    if (items.length === 0) return;
 
-    await this.prisma.userWordProgress.createMany({
-      data: words.map((word) => ({
+    await this.prisma.userExerciseProgress.createMany({
+      data: items.map((item: { id: string }) => ({
         userId,
-        wordId: word.id,
+        itemId: item.id,
+        topicId,
         exerciseType,
         seenInCurrentCycle: false,
         cycleNumber: 1,
@@ -34,84 +33,42 @@ export class ProgressService {
     });
   }
 
-  async getNextWords(
+  async getNextItems(
     userId: string,
     exerciseType: ExerciseType,
-    wordSetId: string,
+    topicId: string,
     count: number = 10,
   ): Promise<{
-    words: {
-      id: string;
-      baseForm: string;
-      pluralForm: string | null;
-      translationRu: string;
-      translationUk: string;
-      translationEn: string;
-    }[];
+    items: Record<string, unknown>[];
     cycleExhausted: boolean;
   }> {
-    const unseenProgress = await this.prisma.userWordProgress.findMany({
+    const unseenProgress = await this.prisma.userExerciseProgress.findMany({
       where: {
         userId,
         exerciseType,
+        topicId,
         seenInCurrentCycle: false,
-        word: { wordSetId },
       },
-      include: {
-        word: {
-          select: {
-            id: true,
-            baseForm: true,
-            pluralForm: true,
-            translationRu: true,
-            translationUk: true,
-            translationEn: true,
-            sortOrder: true,
-          },
-        },
-      },
-      orderBy: { word: { sortOrder: 'asc' } },
+      select: { itemId: true },
       take: count,
     });
 
     if (unseenProgress.length > 0) {
-      return {
-        words: unseenProgress.map((p) => p.word),
-        cycleExhausted: false,
-      };
+      const itemIds = unseenProgress.map((p) => p.itemId);
+      const items = await this.contentService.getItemsByIds(exerciseType, itemIds);
+      return { items, cycleExhausted: false };
     }
 
-    // Check if there are any progress records at all (could be exhausted cycle)
-    const totalProgress = await this.prisma.userWordProgress.count({
-      where: {
-        userId,
-        exerciseType,
-        word: { wordSetId },
-      },
+    const totalProgress = await this.prisma.userExerciseProgress.count({
+      where: { userId, exerciseType, topicId },
     });
 
-    return {
-      words: [],
-      cycleExhausted: totalProgress > 0,
-    };
+    return { items: [], cycleExhausted: totalProgress > 0 };
   }
 
-  async resetCycle(userId: string, exerciseType: ExerciseType, wordSetId: string): Promise<void> {
-    const progressIds = await this.prisma.userWordProgress.findMany({
-      where: {
-        userId,
-        exerciseType,
-        word: { wordSetId },
-      },
-      select: { id: true },
-    });
-
-    if (progressIds.length === 0) return;
-
-    await this.prisma.userWordProgress.updateMany({
-      where: {
-        id: { in: progressIds.map((p) => p.id) },
-      },
+  async resetCycle(userId: string, exerciseType: ExerciseType, topicId: string): Promise<void> {
+    await this.prisma.userExerciseProgress.updateMany({
+      where: { userId, exerciseType, topicId },
       data: {
         seenInCurrentCycle: false,
         cycleNumber: { increment: 1 },
@@ -119,16 +76,16 @@ export class ProgressService {
     });
   }
 
-  async markWordsSeen(
+  async markItemsSeen(
     userId: string,
     exerciseType: ExerciseType,
-    wordIds: string[],
+    itemIds: string[],
   ): Promise<void> {
-    await this.prisma.userWordProgress.updateMany({
+    await this.prisma.userExerciseProgress.updateMany({
       where: {
         userId,
         exerciseType,
-        wordId: { in: wordIds },
+        itemId: { in: itemIds },
       },
       data: {
         seenInCurrentCycle: true,
@@ -140,13 +97,13 @@ export class ProgressService {
   async recordAttempts(
     userId: string,
     exerciseType: ExerciseType,
-    answers: { wordId: string; isCorrect: boolean }[],
+    answers: { itemId: string; isCorrect: boolean }[],
   ): Promise<void> {
     for (const answer of answers) {
-      await this.prisma.userWordProgress.updateMany({
+      await this.prisma.userExerciseProgress.updateMany({
         where: {
           userId,
-          wordId: answer.wordId,
+          itemId: answer.itemId,
           exerciseType,
         },
         data: {
