@@ -53,13 +53,12 @@ describe('ExercisesService', () => {
   });
 
   describe('createSession', () => {
-    it('should create a session with available words', async () => {
-      progressService.getNextWords.mock.mockImplementation(async () => ({
-        words: [
+    it('should create a session with available items', async () => {
+      progressService.getNextItems.mock.mockImplementation(async () => ({
+        items: [
           {
-            id: 'w1',
-            baseForm: 'kruh',
-            pluralForm: 'kruhovi',
+            id: 'item1',
+            frontText: 'kruh',
             translationRu: 'хлеб',
             translationUk: 'хліб',
             translationEn: 'bread',
@@ -71,26 +70,26 @@ describe('ExercisesService', () => {
       prisma.exerciseSession.create.mock.mockImplementation(async () => ({
         id: 'session1',
         exerciseType: 'FLASHCARDS',
-        wordSetId: 'ws1',
+        topicId: 'topic1',
         status: 'IN_PROGRESS',
         totalQuestions: 1,
       }));
 
-      const result = await service.createSession('user1', 'ws1', 'FLASHCARDS' as never);
+      const result = await service.createSession('user1', 'topic1', 'FLASHCARDS' as never);
 
       assert.equal(result.cycleExhausted, false);
       assert.ok(result.session);
-      assert.equal(result.session.words.length, 1);
-      assert.equal(result.session.words[0].baseForm, 'kruh');
+      assert.equal(result.session.items.length, 1);
+      assert.equal((result.session.items[0] as Record<string, unknown>).frontText, 'kruh');
     });
 
-    it('should return cycleExhausted when no words available', async () => {
-      progressService.getNextWords.mock.mockImplementation(async () => ({
-        words: [],
+    it('should return cycleExhausted when no items available', async () => {
+      progressService.getNextItems.mock.mockImplementation(async () => ({
+        items: [],
         cycleExhausted: true,
       }));
 
-      const result = await service.createSession('user1', 'ws1', 'FLASHCARDS' as never);
+      const result = await service.createSession('user1', 'topic1', 'FLASHCARDS' as never);
 
       assert.equal(result.cycleExhausted, true);
       assert.equal(result.session, null);
@@ -118,9 +117,9 @@ describe('ExercisesService', () => {
       }));
 
       const answers = [
-        { wordId: 'w1', givenAnswer: 'bread', isCorrect: true },
-        { wordId: 'w2', givenAnswer: 'wrong', isCorrect: false },
-        { wordId: 'w3', givenAnswer: 'cheese', isCorrect: true },
+        { itemId: 'item1', givenAnswer: 'bread', isCorrect: true },
+        { itemId: 'item2', givenAnswer: 'wrong', isCorrect: false },
+        { itemId: 'item3', givenAnswer: 'cheese', isCorrect: true },
       ];
 
       const result = await service.finishSession('user1', 'session1', answers);
@@ -152,8 +151,8 @@ describe('ExercisesService', () => {
       }));
 
       const answers = [
-        { wordId: 'w1', givenAnswer: 'wrong1', isCorrect: false },
-        { wordId: 'w2', givenAnswer: 'wrong2', isCorrect: false },
+        { itemId: 'item1', givenAnswer: 'wrong1', isCorrect: false },
+        { itemId: 'item2', givenAnswer: 'wrong2', isCorrect: false },
       ];
 
       const result = await service.finishSession('user1', 'session1', answers);
