@@ -19,7 +19,7 @@ enum NativeLanguage {
 }
 
 enum ExerciseType {
-  JEDNINA_MNOZINA
+  TYPE_THE_ANSWER
   FLASHCARDS
   FILL_IN_BLANK
 }

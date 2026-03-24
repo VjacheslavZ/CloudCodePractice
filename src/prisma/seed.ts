@@ -516,8 +516,8 @@ async function seedContent() {
 
   // --- Topic Types (link topics to their exercise types) ---
   const topicTypesData = [
-    { topic: 'Food', types: ['JEDNINA_MNOZINA', 'FLASHCARDS', 'FILL_IN_BLANK'] },
-    { topic: 'Animals', types: ['JEDNINA_MNOZINA', 'FLASHCARDS', 'FILL_IN_BLANK'] },
+    { topic: 'Food', types: ['TYPE_THE_ANSWER', 'FLASHCARDS', 'FILL_IN_BLANK'] },
+    { topic: 'Animals', types: ['TYPE_THE_ANSWER', 'FLASHCARDS', 'FILL_IN_BLANK'] },
     { topic: 'Colors', types: ['FLASHCARDS'] },
     { topic: 'Sizes', types: ['FLASHCARDS'] },
     { topic: 'Daily actions', types: ['FLASHCARDS'] },

@@ -133,7 +133,7 @@ export class ContentService {
   async createSingularPluralItem(dto: CreateSingularPluralItemDto) {
     await this.getTopicById(dto.topicId);
     const item = await this.prisma.singularPluralItem.create({ data: dto });
-    await this.invalidateItemsCache(dto.topicId, ExerciseType.JEDNINA_MNOZINA);
+    await this.invalidateItemsCache(dto.topicId, ExerciseType.TYPE_THE_ANSWER);
     return item;
   }
 
@@ -141,7 +141,7 @@ export class ContentService {
     const existing = await this.prisma.singularPluralItem.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Singular plural item not found');
     const item = await this.prisma.singularPluralItem.update({ where: { id }, data: dto });
-    await this.invalidateItemsCache(existing.topicId, ExerciseType.JEDNINA_MNOZINA);
+    await this.invalidateItemsCache(existing.topicId, ExerciseType.TYPE_THE_ANSWER);
     return item;
   }
 
@@ -149,7 +149,7 @@ export class ContentService {
     const existing = await this.prisma.singularPluralItem.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Singular plural item not found');
     await this.prisma.singularPluralItem.delete({ where: { id } });
-    await this.invalidateItemsCache(existing.topicId, ExerciseType.JEDNINA_MNOZINA);
+    await this.invalidateItemsCache(existing.topicId, ExerciseType.TYPE_THE_ANSWER);
   }
 
   // --- Flashcard Items ---
@@ -235,7 +235,7 @@ export class ContentService {
     if (itemIds.length === 0) return [];
 
     switch (exerciseType) {
-      case ExerciseType.JEDNINA_MNOZINA:
+      case ExerciseType.TYPE_THE_ANSWER:
         return this.prisma.singularPluralItem.findMany({
           where: { id: { in: itemIds } },
           orderBy: { sortOrder: 'asc' },
@@ -257,7 +257,7 @@ export class ContentService {
 
   private async queryItemsByType(topicId: string, exerciseType: ExerciseType) {
     switch (exerciseType) {
-      case ExerciseType.JEDNINA_MNOZINA:
+      case ExerciseType.TYPE_THE_ANSWER:
         return this.prisma.singularPluralItem.findMany({
           where: { topicId },
           orderBy: { sortOrder: 'asc' },

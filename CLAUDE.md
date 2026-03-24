@@ -184,7 +184,7 @@ ExerciseTopicType            <- which exercise types are enabled for a topic
   topicId + exerciseType @unique (@@unique)
   cascade delete from ExerciseTopic
 
-SingularPluralItem           <- items for "Jednina i množina" exercise
+SingularPluralItem           <- items for "Type the Answer" exercise
   topicId
   baseForm, pluralForm
   translationRu, translationUk, translationEn
@@ -370,7 +370,7 @@ The default admin account is created automatically when running the seed script.
 
 | Type                  | Mechanics                                               | Validation                                                                 |
 | --------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------- |
-| **Jednina i množina** | `baseForm` is shown -> user enters the plural form (SingularPluralItem) | trim + lowercase + NFC normalization, client-side comparison with `pluralForm` |
+| **Type the Answer** | `baseForm` is shown -> user enters the plural form (SingularPluralItem) | trim + lowercase + NFC normalization, client-side comparison with `pluralForm` |
 | **Flashcards**        | `frontText` shown -> tap "I knew it" / "I didn't know" (FlashcardItem) | `KNOWN` -> isCorrect=true; `UNKNOWN` -> isCorrect=false |
 | **Fill-in-the-blank** | `sentenceHr` with `{{BLANK}}` placeholder (FillInBlankItem) | Client-side comparison with `blankAnswer` |
 
@@ -556,7 +556,7 @@ Priorities:
 - Admin UI: topics management, tabbed exercise item management (3 tabs per topic), exercise type toggles
 - Admin UI: "Add Admin" form (manage admin accounts from the panel)
 - ProgressModule + item cycle logic (UserExerciseProgress with generic itemId)
-- ExercisesModule: sessions, results processing, all 3 exercise types (Jednina i množina, Flashcards, Fill-in-the-blank)
+- ExercisesModule: sessions, results processing, all 3 exercise types (Type the Answer, Flashcards, Fill-in-the-blank)
 - Exercise screens on web for all 3 types (discriminated union ExerciseItem type)
 - GamificationModule: XP + streak
 - Unit tests: item cycle, results processing, streak
@@ -658,7 +658,7 @@ Priorities:
 
 **Step 8 — Exercise screens on mobile (all 3 types already implemented in Phase 2)**
 
-- Port all 3 exercise type screens from web to mobile (Jednina i množina, Flashcards, Fill-in-the-blank)
+- Port all 3 exercise type screens from web to mobile (Type the Answer, Flashcards, Fill-in-the-blank)
 - All backend endpoints and item tables already exist from Phase 2
 
 **Result**: All 3 exercise types working on mobile.
