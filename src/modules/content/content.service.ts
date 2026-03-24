@@ -132,6 +132,12 @@ export class ContentService {
 
   async createSingularPluralItem(dto: CreateSingularPluralItemDto) {
     await this.getTopicById(dto.topicId);
+    const duplicate = await this.prisma.singularPluralItem.findUnique({
+      where: { baseForm: dto.baseForm },
+    });
+    if (duplicate) {
+      throw new ConflictException('Item with this baseForm already exists');
+    }
     const item = await this.prisma.singularPluralItem.create({ data: dto });
     await this.invalidateItemsCache(dto.topicId, ExerciseType.TYPE_THE_ANSWER);
     return item;
@@ -140,6 +146,14 @@ export class ContentService {
   async updateSingularPluralItem(id: string, dto: UpdateSingularPluralItemDto) {
     const existing = await this.prisma.singularPluralItem.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Singular plural item not found');
+    if (dto.baseForm && dto.baseForm !== existing.baseForm) {
+      const duplicate = await this.prisma.singularPluralItem.findUnique({
+        where: { baseForm: dto.baseForm },
+      });
+      if (duplicate) {
+        throw new ConflictException('Item with this baseForm already exists');
+      }
+    }
     const item = await this.prisma.singularPluralItem.update({ where: { id }, data: dto });
     await this.invalidateItemsCache(existing.topicId, ExerciseType.TYPE_THE_ANSWER);
     return item;

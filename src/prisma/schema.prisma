@@ -161,6 +161,8 @@ model SingularPluralItem {
   updatedAt     DateTime      @updatedAt
 
   topic         ExerciseTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([baseForm])
 }
 
 model FlashcardItem {
